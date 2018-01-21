@@ -107,6 +107,7 @@ class SafariWebAuth: WebAuth {
     }
 
     func start(_ callback: @escaping (Result<Credentials>) -> Void) {
+        if #available(iOS 9.0, *) {
         guard
             let redirectURL = self.redirectURL, !redirectURL.absoluteString.hasPrefix(SafariWebAuth.NoBundleIdentifier)
             else {
@@ -139,9 +140,11 @@ class SafariWebAuth: WebAuth {
             self.presenter.present(controller: controller)
             logger?.trace(url: authorizeURL, source: "Safari")
             self.storage.store(session)
-        #endif
+            #endif
+            
+        }
     }
-
+    @available(iOS 9.0, *)
     func newSafari(_ authorizeURL: URL, callback: @escaping (Result<Credentials>) -> Void) -> (SFSafariViewController, (Result<Credentials>) -> Void) {
         let controller = SFSafariViewController(url: authorizeURL)
         let finish: (Result<Credentials>) -> Void = { [weak controller] (result: Result<Credentials>) -> Void in
@@ -205,28 +208,32 @@ class SafariWebAuth: WebAuth {
     }
 
     func clearSession(federated: Bool, callback: @escaping (Bool) -> Void) {
-        let logoutURL = federated ? URL(string: "/v2/logout?federated", relativeTo: self.url)! : URL(string: "/v2/logout", relativeTo: self.url)!
-        #if swift(>=3.2)
-        if #available(iOS 11.0, *), self.authenticationSession {
-            let returnTo = URLQueryItem(name: "returnTo", value: self.redirectURL?.absoluteString)
-            let clientId = URLQueryItem(name: "client_id", value: self.clientId)
-            var components = URLComponents(url: logoutURL, resolvingAgainstBaseURL: true)
-            components?.queryItems?.append(contentsOf: [returnTo, clientId])
-            guard let clearSessionURL = components?.url, let redirectURL = returnTo.value else {
-                return callback(false)
-            }
-            let clearSession = SafariAuthenticationSessionCallback(url: clearSessionURL, schemeURL: redirectURL, callback: callback)
-            self.storage.store(clearSession)
-        } else {
-            let controller = SilentSafariViewController(url: logoutURL) { callback($0) }
-            logger?.trace(url: logoutURL, source: "Safari")
-            self.presenter.present(controller: controller)
+        if #available(iOS 9.0, *) {
+        
+            let logoutURL = federated ? URL(string: "/v2/logout?federated", relativeTo: self.url)! : URL(string: "/v2/logout", relativeTo: self.url)!
+
+            #if swift(>=3.2)
+                if #available(iOS 11.0, *), self.authenticationSession {
+                    let returnTo = URLQueryItem(name: "returnTo", value: self.redirectURL?.absoluteString)
+                    let clientId = URLQueryItem(name: "client_id", value: self.clientId)
+                    var components = URLComponents(url: logoutURL, resolvingAgainstBaseURL: true)
+                    components?.queryItems?.append(contentsOf: [returnTo, clientId])
+                    guard let clearSessionURL = components?.url, let redirectURL = returnTo.value else {
+                        return callback(false)
+                    }
+                    let clearSession = SafariAuthenticationSessionCallback(url: clearSessionURL, schemeURL: redirectURL, callback: callback)
+                    self.storage.store(clearSession)
+                } else {
+                    let controller = SilentSafariViewController(url: logoutURL) { callback($0) }
+                    logger?.trace(url: logoutURL, source: "Safari")
+                    self.presenter.present(controller: controller)
+                }
+            #else
+                let controller = SilentSafariViewController(url: logoutURL) { callback($0) }
+                logger?.trace(url: logoutURL, source: "Safari")
+                self.presenter.present(controller: controller)
+            #endif
         }
-        #else
-            let controller = SilentSafariViewController(url: logoutURL) { callback($0) }
-            logger?.trace(url: logoutURL, source: "Safari")
-            self.presenter.present(controller: controller)
-        #endif
     }
 }
 
